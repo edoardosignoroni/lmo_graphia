@@ -31,7 +31,8 @@ from classifiers import (
     CharLSTMClassifier, 
     CharCNNClassifier,
     CharDeepCNNClassifier, 
-    CharTransformerClassifier
+    CharTransformerClassifier,
+    ByteNGramAnalyzer
 )
 
 
@@ -59,7 +60,7 @@ class ClassifierApplier:
         
         # Try to load as neural network model first
         try:
-            checkpoint = torch.load(self.model_path, map_location=self.device)
+            checkpoint = torch.load(self.model_path, map_location=self.device, weights_only=False)
             self.model_type = 'neural'
             self._load_neural_model(checkpoint)
             print(f"Loaded neural network model ({checkpoint['model_type']}, {checkpoint.get('encoding_type', 'char')}-level)", flush=True)
@@ -314,7 +315,6 @@ Examples:
         min_confidence=args.min_conf,
         skip_empty=not args.keep_empty
     )
-
 
 if __name__ == "__main__":
     main()
