@@ -65,16 +65,41 @@ python apply_classifier.py \
     --output results.jsonl
 ```
 
+### Error Analysis
+
+```bash
+# Run error analysis on a gold-labeled test set
+python apply_classifier.py \
+    --input ../data/gold/test.jsonl \
+    --model path/to/model.pkl \
+    --analysis
+
+# Save report to file and show more misclassified examples
+python apply_classifier.py \
+    --input ../data/gold/test.jsonl \
+    --model path/to/model.pkl \
+    --analysis \
+    --max-errors 50 \
+    --output report.txt
+```
+
+The report includes: overall accuracy, per-class TP/FP/FN/TN with
+precision/recall/F1 (macro & weighted), confusion matrix, confidence
+statistics for correct vs. wrong predictions, most confused label pairs,
+and a sample of misclassified examples.
+
 ### apply_classifier.py
 
 **Required:**
-- `--input` or `-i`: Input text file
+- `--input` or `-i`: Input text file (plain text) or JSONL with `text`+`tag` fields (for `--analysis`)
 - `--model` or `-m`: Model file (.pkl or .pt)
 
 **Optional:**
-- `--output` or `-o`: Output JSONL file (default: stdout)
+- `--output` or `-o`: Output JSONL file (default: stdout); in analysis mode, output file for the report
 - `--min-conf`: Minimum confidence (0.0-1.0, default: 0.0)
 - `--keep-empty`: Process empty lines (default: skip)
+- `--analysis`: Error analysis mode — compare predictions against gold labels in the input JSONL
+- `--max-errors`: Max misclassified examples shown in the analysis report (default: 10)
 
 ## Data Formats
 
