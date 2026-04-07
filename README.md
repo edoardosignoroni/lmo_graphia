@@ -104,13 +104,28 @@ ortho_classifier/
 | Accuracy range      | 15.02             | 11.58          | 14.85            | 100.0          | 75.00          | 100.0          | 69.23           | 83.33            | 8.86             | 50.36              |
 
 
+## Future Work & Improvements
+
++ Multilabel Classification
++ Tagset Expansion (Non-Lombard; Non-Language)
+
 
 ## Citation
 
-If you use this classifier, please cite:
+If you use these classifiers, please cite:
+
+Edoardo **Signoroni** and Pavel **Rychlý**, *LombardoGraphia: Automatic Classification of Lombard Orthography Variants*, Accepted at LREC 2026
 
 ```
-Edoardo Signoroni and Pavel Rýchly, LombardoGraphia: Automatic Classification of Lombard Orthography Variants, Upcoming
+@misc{signoroni2026lombardographiaautomaticclassificationlombard,
+      title={LombardoGraphia: Automatic Classification of Lombard Orthography Variants}, 
+      author={Edoardo Signoroni and Pavel Rychlý},
+      year={2026},
+      eprint={2603.28418},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2603.28418}, 
+}
 ```
 
 ## Contacts

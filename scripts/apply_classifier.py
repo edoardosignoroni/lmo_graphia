@@ -8,6 +8,9 @@ Supports both traditional ML (sklearn) and neural network models.
 Usage:
     # Apply classifier and output to JSONL
     python apply_classifier.py --input input.txt --model model.pkl --output results.jsonl
+
+    # Default stats log is written automatically
+    # (for output file: results.jsonl.log)
     
     # Filter by confidence threshold
     python apply_classifier.py --input input.txt --model model.pt --min-conf 0.8 --output results.jsonl
@@ -20,6 +23,9 @@ Usage:
     
     # Error analysis with output and limited misclassified examples
     python apply_classifier.py --input test.jsonl --model model.pkl --analysis --max-errors 20 --output report.txt
+
+    # Disable stats logging
+    python apply_classifier.py --input input.txt --model model.pkl --no-log
 """
 
 import json
@@ -28,7 +34,7 @@ import pickle
 import sys
 from pathlib import Path
 from typing import Tuple, List, Dict
-from collections import Counter, defaultdict
+from collections import Counter
 import numpy as np
 import torch
 
@@ -120,6 +126,54 @@ class ClassifierApplier:
             return self._predict_sklearn(text)
         else:
             return self._predict_neural(text)
+
+    @staticmethod
+    def _progress_bar(current: int, total: int, width: int = 32) -> str:
+        """Build an ASCII progress bar string."""
+        if total <= 0:
+            return '[unknown]'
+        ratio = min(max(current / total, 0.0), 1.0)
+        filled = int(ratio * width)
+        bar = '=' * filled + '-' * (width - filled)
+        return f'[{bar}] {ratio * 100:6.2f}% ({current}/{total})'
+
+    @staticmethod
+    def _default_log_path(input_path: str, output_path: str = None) -> Path:
+        """Choose a default log file path for stats output."""
+        if output_path:
+            return Path(output_path).with_suffix(Path(output_path).suffix + '.log')
+        return Path(input_path).with_suffix(Path(input_path).suffix + '.classification.log')
+
+    def _build_classification_stats_text(self, results: List[Dict], total_lines: int,
+                                         processed_lines: int, min_confidence: float) -> str:
+        """Build classification stats report text."""
+        lines: List[str] = []
+        lines.append('=' * 60)
+        lines.append('CLASSIFICATION STATISTICS')
+        lines.append('=' * 60)
+        lines.append(f'Total lines read                : {total_lines}')
+        lines.append(f'Non-empty lines processed       : {processed_lines}')
+        lines.append(f'Lines above confidence threshold: {len(results)}')
+        lines.append(f'Min confidence threshold        : {min_confidence:.4f}')
+
+        if not results:
+            lines.append('\nNo predictions available for detailed statistics.')
+            return '\n'.join(lines)
+
+        tag_counts = Counter(r['tag'] for r in results)
+        lines.append('\nTag distribution:')
+        for tag, count in sorted(tag_counts.items(), key=lambda x: -x[1]):
+            pct = 100 * count / len(results)
+            lines.append(f'  {tag:15}: {count:6} ({pct:5.1f}%)')
+
+        confidences = [r['conf'] for r in results]
+        lines.append('\nConfidence statistics:')
+        lines.append(f'  Mean: {np.mean(confidences):.4f}')
+        lines.append(f'  Median: {np.median(confidences):.4f}')
+        lines.append(f'  Min: {np.min(confidences):.4f}')
+        lines.append(f'  Max: {np.max(confidences):.4f}')
+
+        return '\n'.join(lines)
     
     def _predict_sklearn(self, text: str) -> Tuple[str, float]:
         """Predict with sklearn model"""
@@ -186,29 +240,37 @@ class ClassifierApplier:
         
         return pred_label, confidence_score
     
-    def classify_file(self, input_path: str, output_path: str = None, 
-                     min_confidence: float = 0.0, skip_empty: bool = True):
+    def classify_file(self, input_path: str, output_path: str = None,
+                     min_confidence: float = 0.0, skip_empty: bool = True,
+                     log_path: str = None, write_log: bool = True):
         """Classify lines from input file"""
         print(f"\nClassifying lines from {input_path}...", flush=True)
-        
+
+        # Count total lines first so the progress bar can show percent complete.
+        with open(input_path, 'r', encoding='utf-8') as f:
+            total_lines = sum(1 for _ in f)
+
         results = []
-        total_lines = 0
         processed_lines = 0
-        
+        lines_read = 0
+
         with open(input_path, 'r', encoding='utf-8') as f:
             for line in f:
-                total_lines += 1
+                lines_read += 1
                 line = line.strip()
-                
+
                 # Skip empty lines if requested
                 if skip_empty and not line:
+                    if total_lines > 0 and (lines_read % 200 == 0):
+                        print('\r' + self._progress_bar(lines_read, total_lines),
+                              end='', flush=True)
                     continue
-                
+
                 processed_lines += 1
-                
+
                 # Classify
                 tag, confidence = self.predict_with_confidence(line)
-                
+
                 # Filter by confidence
                 if confidence >= min_confidence:
                     result = {
@@ -217,15 +279,18 @@ class ClassifierApplier:
                         'conf': round(confidence, 4)
                     }
                     results.append(result)
-                    
-                    # Print progress
-                    if processed_lines % 1000 == 0:
-                        print(f"Processed {processed_lines} lines...", flush=True)
-        
+
+                if total_lines > 0 and (lines_read % 200 == 0):
+                    print('\r' + self._progress_bar(lines_read, total_lines),
+                          end='', flush=True)
+
+        if total_lines > 0:
+            print('\r' + self._progress_bar(total_lines, total_lines), flush=True)
+
         print(f"\nTotal lines read: {total_lines}", flush=True)
         print(f"Non-empty lines processed: {processed_lines}", flush=True)
         print(f"Lines above confidence threshold: {len(results)}", flush=True)
-        
+
         # Output results
         if output_path:
             with open(output_path, 'w', encoding='utf-8') as f:
@@ -236,33 +301,18 @@ class ClassifierApplier:
             # Print to stdout
             for result in results:
                 print(json.dumps(result, ensure_ascii=False))
-        
-        # Print statistics
-        self._print_statistics(results)
-    
-    def _print_statistics(self, results):
-        """Print classification statistics"""
-        if not results:
-            return
-        
-        print("\n" + "="*60, flush=True)
-        print("CLASSIFICATION STATISTICS", flush=True)
-        print("="*60, flush=True)
-        
-        # Tag distribution
-        tag_counts = Counter(r['tag'] for r in results)
-        print("\nTag distribution:", flush=True)
-        for tag, count in sorted(tag_counts.items(), key=lambda x: -x[1]):
-            pct = 100 * count / len(results)
-            print(f"  {tag:15}: {count:6} ({pct:5.1f}%)", flush=True)
-        
-        # Confidence statistics
-        confidences = [r['conf'] for r in results]
-        print(f"\nConfidence statistics:", flush=True)
-        print(f"  Mean: {np.mean(confidences):.4f}", flush=True)
-        print(f"  Median: {np.median(confidences):.4f}", flush=True)
-        print(f"  Min: {np.min(confidences):.4f}", flush=True)
-        print(f"  Max: {np.max(confidences):.4f}", flush=True)
+
+        # Print and save statistics by default.
+        stats_text = self._build_classification_stats_text(
+            results, total_lines, processed_lines, min_confidence
+        )
+        print("\n" + stats_text, flush=True)
+
+        if write_log:
+            final_log_path = Path(log_path) if log_path else self._default_log_path(input_path, output_path)
+            with open(final_log_path, 'w', encoding='utf-8') as f:
+                f.write(stats_text + '\n')
+            print(f"Stats log written to {final_log_path}", flush=True)
 
     def analyze_file(self, input_path: str, output_path: str = None,
                      max_errors: int = 10, skip_empty: bool = True):
@@ -530,12 +580,15 @@ Examples:
   
   # Error analysis with report saved to file
   python apply_classifier.py --input test.jsonl --model model.pkl --analysis --max-errors 20 --output report.txt
+
+    # Disable stats logging for classification mode
+    python apply_classifier.py --input input.txt --model model.pkl --no-log
         """
     )
     
     parser.add_argument("--input", "-i", type=str, required=True,
                        help="Input text file (one line per sample)")
-    parser.add_argument("--model", "-m", type=str, required=True,
+    parser.add_argument("--model", "-m", type=str, default="/nlp/projekty/mtlowre/lmo_graphia/models/lombard_classifier_model_logistic_byte.pkl",
                        help="Path to trained model (.pkl or .pt)")
     parser.add_argument("--output", "-o", type=str, default=None,
                        help="Output JSONL file (default: stdout)")
@@ -549,6 +602,11 @@ Examples:
     parser.add_argument("--max-errors", type=int, default=10,
                        help="Max misclassified examples to show in analysis "
                             "report (default: 10)")
+    parser.add_argument("--log", type=str, default=None,
+                       help="Path to classification stats log file. "
+                           "Default: auto-generated .log path")
+    parser.add_argument("--no-log", action="store_true",
+                       help="Disable writing default stats log file")
     
     args = parser.parse_args()
     
@@ -578,11 +636,15 @@ Examples:
             skip_empty=not args.keep_empty
         )
     else:
+        write_log = not args.no_log
+        log_path = args.log if args.log else None
         applier.classify_file(
             args.input, 
             args.output, 
             min_confidence=args.min_conf,
-            skip_empty=not args.keep_empty
+            skip_empty=not args.keep_empty,
+            log_path=log_path,
+            write_log=write_log
         )
 
 if __name__ == "__main__":
