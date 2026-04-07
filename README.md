@@ -104,11 +104,13 @@ ortho_classifier/
 | Accuracy range      | 15.02             | 11.58          | 14.85            | 100.0          | 75.00          | 100.0          | 69.23           | 83.33            | 8.86             | 50.36              |
 
 
-## Future Work & Improvements
+## Upcoming Features
 
 + Multilabel Classification
-+ Tagset Expansion (Non-Lombard; Non-Language)
++ Tagset Expansion (Non-Lombard; Non-Language; Macro-Diaclectal only)
++ Dataset Expansion (Non-Lombard; Non-Language)
 
++ Othography Converter
 
 ## Citation
 
