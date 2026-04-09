@@ -103,7 +103,6 @@ ortho_classifier/
 | Worst accuracy      | 83.86             | 85.00          | 84.28            | 0.00           | 0.00           | 0.00           | 0.00            | 0.00             | 87.20            | 35.42              |
 | Accuracy range      | 15.02             | 11.58          | 14.85            | 100.0          | 75.00          | 100.0          | 69.23           | 83.33            | 8.86             | 50.36              |
 
-
 ## Upcoming Features
 
 + Multilabel Classification
@@ -114,7 +113,7 @@ ortho_classifier/
 
 ## Citation
 
-If you use these classifiers, please cite:
+If you use these classifiers or the data, please cite:
 
 Edoardo **Signoroni** and Pavel **Rychlý**, *LombardoGraphia: Automatic Classification of Lombard Orthography Variants*, Accepted at LREC 2026
 
